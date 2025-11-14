@@ -1,48 +1,88 @@
 """
-Database Schemas
+Database Schemas for Elevate Scripts
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model corresponds to a MongoDB collection with the collection
+name equal to the lowercase class name.
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Collections:
+- product
+- statusentry
+- order
+- license
+- user
+- rebindrequest
 """
+from __future__ import annotations
+from typing import List, Literal, Optional
+from pydantic import BaseModel, Field, EmailStr
+from datetime import datetime
 
-from pydantic import BaseModel, Field
-from typing import Optional
+Currency = Literal["IRR"]
 
-# Example schemas (replace with your own):
-
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+class Duration(BaseModel):
+    label: Literal["1m", "3m"]
+    months: int = Field(..., ge=1)
+    price: int = Field(..., ge=0, description="Price in IRT (Toman)")
 
 class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+    type: Literal["hardware", "license"]
+    slug: str
+    title_fa: str
+    title_en: str
+    description_fa: Optional[str] = None
+    description_en: Optional[str] = None
+    game: Optional[Literal["vmp", "cs2", "r6"]] = None
+    durations: Optional[List[Duration]] = None
+    requiresHardware: bool = True
+    price: Optional[int] = Field(None, ge=0, description="For hardware price in IRT")
+    images: List[str] = []
+    in_stock: bool = True
+    badge: Optional[str] = None  # e.g., New, Best Value
 
-# Add your own schemas here:
-# --------------------------------------------------
+class StatusEntry(BaseModel):
+    game: Literal["vmp", "cs2", "r6"]
+    state: Literal["detected", "undetected"] = "undetected"
+    updatedAt: datetime
+    note_fa: Optional[str] = None
+    note_en: Optional[str] = None
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class OrderItem(BaseModel):
+    slug: str
+    title: str
+    type: Literal["hardware", "license"]
+    duration_label: Optional[Literal["1m", "3m"]] = None
+    qty: int = Field(1, ge=1)
+    unit_price: int = Field(..., ge=0)
+    total_price: int = Field(..., ge=0)
+
+class Order(BaseModel):
+    email: EmailStr
+    address: Optional[str] = None
+    items: List[OrderItem]
+    subtotal: int
+    discount: int = 0
+    shipping_fee: int = 0
+    total: int
+    coupon: Optional[str] = None
+    payment_status: Literal["pending", "paid", "failed"] = "pending"
+    delivery_notes: Optional[str] = None
+
+class License(BaseModel):
+    email: EmailStr
+    game: Literal["vmp", "cs2", "r6"]
+    duration_label: Literal["1m", "3m"]
+    key_masked: str
+    status: Literal["active", "expired"] = "active"
+    expiry: datetime
+    hwid_masked: str = "****-****-****"
+
+class User(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+    address: Optional[str] = None
+
+class RebindRequest(BaseModel):
+    email: EmailStr
+    license_key_masked: str
+    reason: Optional[str] = None
+    created_at: datetime
